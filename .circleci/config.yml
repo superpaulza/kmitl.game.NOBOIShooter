@@ -11,6 +11,7 @@ version: 2.1
 #     entire solution) to avoid cross-platform workload errors.
 #   - macOS executor installs .NET SDK via brew before any dotnet commands.
 #   - Workloads are installed BEFORE dotnet restore/publish.
+#   - dotnet-mgcb tool is restored via .config/dotnet-tools.json manifest.
 #   - dotnet publish handles restore + build + MGCB content in one step.
 # =============================================================================
 
@@ -44,16 +45,23 @@ commands:
       - checkout
       - restore_cache:
           keys:
-            - dotnet-v3-{{ checksum "NOBOIShooter.Shared/NOBOIShooter.Shared.csproj" }}
-            - dotnet-v3-
+            - dotnet-v4-{{ checksum "NOBOIShooter.Shared/NOBOIShooter.Shared.csproj" }}
+            - dotnet-v4-
 
   save_dotnet_cache:
     steps:
       - save_cache:
-          key: dotnet-v3-{{ checksum "NOBOIShooter.Shared/NOBOIShooter.Shared.csproj" }}
+          key: dotnet-v4-{{ checksum "NOBOIShooter.Shared/NOBOIShooter.Shared.csproj" }}
           paths:
             - ~/.nuget/packages
             - ~/.dotnet
+
+  restore_mgcb_tool:
+    description: "Restore dotnet-mgcb tool from .config/dotnet-tools.json"
+    steps:
+      - run:
+          name: Restore MGCB content builder tool
+          command: dotnet tool restore
 
   install_dotnet_sdk:
     description: "Install .NET SDK on macOS (not present by default)"
@@ -67,6 +75,25 @@ commands:
               echo 'export PATH="/usr/local/share/dotnet:$PATH"' >> "$BASH_ENV"
             fi
 
+  install_android_sdk:
+    description: "Install Android SDK command-line tools and platforms"
+    steps:
+      - run:
+          name: Install Android SDK
+          command: |
+            if [ ! -d "$ANDROID_HOME" ]; then
+              export ANDROID_HOME=/opt/android-sdk
+              echo "export ANDROID_HOME=/opt/android-sdk" >> "$BASH_ENV"
+              mkdir -p $ANDROID_HOME
+              cd /tmp
+              curl -sO https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+              unzip -q commandlinetools-linux-11076708_latest.zip
+              mkdir -p $ANDROID_HOME/cmdline-tools
+              mv cmdline-tools $ANDROID_HOME/cmdline-tools/latest
+              yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1
+              $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+            fi
+
 # ---------------------------------------------------------------------------
 # Jobs
 # ---------------------------------------------------------------------------
@@ -78,6 +105,7 @@ jobs:
     executor: dotnet
     steps:
       - checkout_and_restore
+      - restore_mgcb_tool
       - run:
           name: Publish Windows x64
           command: |
@@ -103,6 +131,7 @@ jobs:
     executor: dotnet
     steps:
       - checkout_and_restore
+      - restore_mgcb_tool
       - run:
           name: Publish Linux x64
           command: |
@@ -129,6 +158,7 @@ jobs:
     steps:
       - checkout_and_restore
       - install_dotnet_sdk
+      - restore_mgcb_tool
       - run:
           name: Publish macOS x64
           command: |
@@ -155,6 +185,7 @@ jobs:
     steps:
       - checkout_and_restore
       - install_dotnet_sdk
+      - restore_mgcb_tool
       - run:
           name: Publish macOS arm64
           command: |
@@ -180,9 +211,11 @@ jobs:
     executor: dotnet
     steps:
       - checkout_and_restore
+      - install_android_sdk
       - run:
           name: Install Android workload
           command: dotnet workload install android
+      - restore_mgcb_tool
       - run:
           name: Publish Android arm64 (unsigned APK)
           command: |
@@ -224,10 +257,8 @@ jobs:
       - install_dotnet_sdk
       - run:
           name: Install iOS workload
-          command: |
-            dotnet workload install ios || \
-            dotnet workload install maui || \
-            echo "iOS workload install failed, attempting build anyway"
+          command: dotnet workload install maui
+      - restore_mgcb_tool
       - run:
           name: Publish iOS arm64 (unsigned)
           command: |
