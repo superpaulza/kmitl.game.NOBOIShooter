@@ -1,0 +1,285 @@
+version: 2.1
+
+# =============================================================================
+# CircleCI Multi-Platform Build Pipeline for NOBOIShooter (MonoGame)
+# =============================================================================
+# Builds: Windows, Linux, macOS (x64 + arm64), Android, iOS
+# Artifacts: Available in CircleCI Artifacts tab after build
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Executors
+# ---------------------------------------------------------------------------
+executors:
+  dotnet:
+    docker:
+      - image: mcr.microsoft.com/dotnet/sdk:8.0
+    working_directory: ~/repo
+    environment:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_NOLOGO: 1
+
+  macos:
+    macos:
+      xcode: "15.4"
+    resource_class: macos.m1.medium.gen1
+    working_directory: ~/repo
+    environment:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_NOLOGO: 1
+
+# ---------------------------------------------------------------------------
+# Reusable commands
+# ---------------------------------------------------------------------------
+commands:
+  checkout_and_restore:
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - dotnet-{{ checksum "NOBOIShooter.Shared/NOBOIShooter.Shared.csproj" }}
+            - dotnet-
+
+  save_dotnet_cache:
+    steps:
+      - save_cache:
+          key: dotnet-{{ checksum "NOBOIShooter.Shared/NOBOIShooter.Shared.csproj" }}
+          paths:
+            - ~/.nuget/packages
+            - ~/.dotnet
+
+# ---------------------------------------------------------------------------
+# Jobs
+# ---------------------------------------------------------------------------
+jobs:
+  # =========================================================================
+  # Windows build (cross-compiled from Linux Docker)
+  # =========================================================================
+  build-windows:
+    executor: dotnet
+    steps:
+      - checkout_and_restore
+      - run:
+          name: Install Android workload (for solution restore)
+          command: dotnet workload install android || true
+      - run:
+          name: Restore packages
+          command: dotnet restore
+      - run:
+          name: Build Shared project
+          command: dotnet build NOBOIShooter.Shared/NOBOIShooter.Shared.csproj -c Release
+      - run:
+          name: Publish Windows x64
+          command: |
+            dotnet publish NOBOIShooter.DesktopGL/NOBOIShooter.DesktopGL.csproj \
+              -r win-x64 \
+              --self-contained \
+              -c Release \
+              -o artifacts/win-x64
+      - run:
+          name: Package Windows artifact
+          command: |
+            cd artifacts/win-x64
+            zip -r ../NOBOIShooter-win-x64.zip .
+      - save_dotnet_cache
+      - store_artifacts:
+          path: artifacts/NOBOIShooter-win-x64.zip
+          destination: builds/NOBOIShooter-win-x64.zip
+
+  # =========================================================================
+  # Linux build
+  # =========================================================================
+  build-linux:
+    executor: dotnet
+    steps:
+      - checkout_and_restore
+      - run:
+          name: Restore packages
+          command: dotnet restore
+      - run:
+          name: Build Shared project
+          command: dotnet build NOBOIShooter.Shared/NOBOIShooter.Shared.csproj -c Release
+      - run:
+          name: Publish Linux x64
+          command: |
+            dotnet publish NOBOIShooter.DesktopGL/NOBOIShooter.DesktopGL.csproj \
+              -r linux-x64 \
+              --self-contained \
+              -c Release \
+              -o artifacts/linux-x64
+      - run:
+          name: Package Linux artifact
+          command: |
+            cd artifacts/linux-x64
+            tar -czf ../NOBOIShooter-linux-x64.tar.gz .
+      - save_dotnet_cache
+      - store_artifacts:
+          path: artifacts/NOBOIShooter-linux-x64.tar.gz
+          destination: builds/NOBOIShooter-linux-x64.tar.gz
+
+  # =========================================================================
+  # macOS Intel build
+  # =========================================================================
+  build-macos-x64:
+    executor: macos
+    steps:
+      - checkout_and_restore
+      - run:
+          name: Install .NET workloads
+          command: |
+            dotnet workload install ios || true
+            dotnet workload install android || true
+      - run:
+          name: Restore packages
+          command: dotnet restore
+      - run:
+          name: Build Shared project
+          command: dotnet build NOBOIShooter.Shared/NOBOIShooter.Shared.csproj -c Release
+      - run:
+          name: Publish macOS x64
+          command: |
+            dotnet publish NOBOIShooter.DesktopGL/NOBOIShooter.DesktopGL.csproj \
+              -r osx-x64 \
+              --self-contained \
+              -c Release \
+              -o artifacts/osx-x64
+      - run:
+          name: Package macOS x64 artifact
+          command: |
+            cd artifacts/osx-x64
+            zip -r ../NOBOIShooter-osx-x64.zip .
+      - save_dotnet_cache
+      - store_artifacts:
+          path: artifacts/NOBOIShooter-osx-x64.zip
+          destination: builds/NOBOIShooter-osx-x64.zip
+
+  # =========================================================================
+  # macOS Apple Silicon build
+  # =========================================================================
+  build-macos-arm64:
+    executor: macos
+    steps:
+      - checkout_and_restore
+      - run:
+          name: Install .NET workloads
+          command: |
+            dotnet workload install ios || true
+            dotnet workload install android || true
+      - run:
+          name: Restore packages
+          command: dotnet restore
+      - run:
+          name: Build Shared project
+          command: dotnet build NOBOIShooter.Shared/NOBOIShooter.Shared.csproj -c Release
+      - run:
+          name: Publish macOS arm64
+          command: |
+            dotnet publish NOBOIShooter.DesktopGL/NOBOIShooter.DesktopGL.csproj \
+              -r osx-arm64 \
+              --self-contained \
+              -c Release \
+              -o artifacts/osx-arm64
+      - run:
+          name: Package macOS arm64 artifact
+          command: |
+            cd artifacts/osx-arm64
+            zip -r ../NOBOIShooter-osx-arm64.zip .
+      - save_dotnet_cache
+      - store_artifacts:
+          path: artifacts/NOBOIShooter-osx-arm64.zip
+          destination: builds/NOBOIShooter-osx-arm64.zip
+
+  # =========================================================================
+  # Android build
+  # =========================================================================
+  build-android:
+    executor: dotnet
+    steps:
+      - checkout_and_restore
+      - run:
+          name: Install Android workload
+          command: dotnet workload install android
+      - run:
+          name: Restore packages
+          command: dotnet restore
+      - run:
+          name: Build Shared project
+          command: dotnet build NOBOIShooter.Shared/NOBOIShooter.Shared.csproj -c Release
+      - run:
+          name: Publish Android arm64 (unsigned APK)
+          command: |
+            dotnet publish NOBOIShooter.Android/NOBOIShooter.Android.csproj \
+              -r android-arm64 \
+              --self-contained \
+              -c Release \
+              -o artifacts/android-arm64
+      - run:
+          name: Publish Android x64 (for emulator testing)
+          command: |
+            dotnet publish NOBOIShooter.Android/NOBOIShooter.Android.csproj \
+              -r android-x64 \
+              --self-contained \
+              -c Release \
+              -o artifacts/android-x64
+      - run:
+          name: Package Android artifacts
+          command: |
+            cd artifacts/android-arm64
+            zip -r ../NOBOIShooter-android-arm64.zip .
+            cd ../android-x64
+            zip -r ../NOBOIShooter-android-x64.zip .
+      - save_dotnet_cache
+      - store_artifacts:
+          path: artifacts/NOBOIShooter-android-arm64.zip
+          destination: builds/NOBOIShooter-android-arm64.zip
+      - store_artifacts:
+          path: artifacts/NOBOIShooter-android-x64.zip
+          destination: builds/NOBOIShooter-android-x64.zip
+
+  # =========================================================================
+  # iOS build (unsigned - requires Apple Developer account for distribution)
+  # =========================================================================
+  build-ios:
+    executor: macos
+    steps:
+      - checkout_and_restore
+      - run:
+          name: Install iOS workload
+          command: dotnet workload install ios
+      - run:
+          name: Restore packages
+          command: dotnet restore
+      - run:
+          name: Build Shared project
+          command: dotnet build NOBOIShooter.Shared/NOBOIShooter.Shared.csproj -c Release
+      - run:
+          name: Publish iOS arm64 (unsigned)
+          command: |
+            dotnet publish NOBOIShooter.iOS/NOBOIShooter.iOS.csproj \
+              -r ios-arm64 \
+              --self-contained \
+              -c Release \
+              -o artifacts/ios-arm64
+      - run:
+          name: Package iOS artifact
+          command: |
+            cd artifacts/ios-arm64
+            zip -r ../NOBOIShooter-ios-arm64.zip .
+      - save_dotnet_cache
+      - store_artifacts:
+          path: artifacts/NOBOIShooter-ios-arm64.zip
+          destination: builds/NOBOIShooter-ios-arm64.zip
+
+# ---------------------------------------------------------------------------
+# Workflows
+# ---------------------------------------------------------------------------
+workflows:
+  version: 2
+  build-and-release:
+    jobs:
+      - build-windows
+      - build-linux
+      - build-macos-x64
+      - build-macos-arm64
+      - build-android
+      - build-ios
