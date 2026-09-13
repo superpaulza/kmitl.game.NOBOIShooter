@@ -58,11 +58,33 @@ commands:
             - ~/.dotnet
 
   restore_mgcb_tool:
-    description: "Restore dotnet-mgcb tool from .config/dotnet-tools.json"
+    description: "Restore dotnet-mgcb tool and fix FFmpeg dylibs on macOS"
     steps:
       - run:
           name: Restore MGCB content builder tool
           command: dotnet tool restore || true
+      - run:
+          name: Replace MGCB-bundled FFmpeg dylibs (macOS only)
+          command: |
+            # Only runs on macOS where brew provides arm64 FFmpeg
+            command -v brew &> /dev/null || exit 0
+            BREW_LIB=$(brew --prefix)/lib
+            MGCB_STORE="$HOME/.dotnet/tools/.store/dotnet-mgcb"
+            if [ -d "$MGCB_STORE" ]; then
+              echo "Replacing FFmpeg dylibs in MGCB tool store..."
+              for dylib in libavcodec libavformat libavutil libswresample libswscale; do
+                BREW_DYLIB="$BREW_LIB/${dylib}.dylib"
+                if [ -f "$BREW_DYLIB" ]; then
+                  find "$MGCB_STORE" -name "${dylib}.dylib" -type f 2>/dev/null | while read -r f; do
+                    echo "  Replacing $f with $BREW_DYLIB"
+                    cp "$BREW_DYLIB" "$f" 2>/dev/null || true
+                  done
+                fi
+              done
+              echo "FFmpeg dylib replacement complete."
+            else
+              echo "MGCB store not found at $MGCB_STORE, skipping FFmpeg replacement."
+            fi
 
   install_monogame_native_deps:
     description: "Install native libraries needed by MonoGame Content Builder (freetype, libpng)"
@@ -134,27 +156,12 @@ commands:
                 done
               done
             fi
-            # Replace MGCB-bundled FFmpeg dylibs with brew arm64-compatible versions
-            # MGCB loads FFmpeg via P/Invoke from its NuGet tool store
-            MGCB_STORE="$HOME/.dotnet/tools/.store/dotnet-mgcb"
-            if [ -d "$MGCB_STORE" ]; then
-              for dylib in libavcodec libavformat libavutil libswresample libswscale; do
-                for ext in dylib; do
-                  BREW_DYLIB="$BREW_LIB/${dylib}.${ext}"
-                  if [ -f "$BREW_DYLIB" ]; then
-                    find "$MGCB_STORE" -name "${dylib}.${ext}" -type f 2>/dev/null | while read -r f; do
-                      cp "$BREW_DYLIB" "$f" 2>/dev/null || true
-                    done
-                  fi
-                done
-              done
-            fi
             # Also ensure ffmpeg is in PATH
             ln -sf "$BREW_BIN/ffmpeg" /usr/local/bin/ffmpeg 2>/dev/null || true
             ln -sf "$BREW_BIN/ffprobe" /usr/local/bin/ffprobe 2>/dev/null || true
 
   install_android_sdk:
-    description: "Install Android SDK command-line tools and platforms"
+    description: "Install Java and Android SDK command-line tools and platforms"
     steps:
       - run:
           name: Install Android SDK
@@ -162,7 +169,9 @@ commands:
             export ANDROID_HOME=/opt/android-sdk
             echo "export ANDROID_HOME=/opt/android-sdk" >> "$BASH_ENV"
             echo "export ANDROID_SDK_ROOT=/opt/android-sdk" >> "$BASH_ENV"
-            apt-get update && apt-get install -y unzip curl
+            apt-get update && apt-get install -y unzip curl openjdk-17-jdk-headless
+            export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+            echo "export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> "$BASH_ENV"
             if [ ! -d "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
               mkdir -p $ANDROID_HOME
               cd /tmp
@@ -175,6 +184,7 @@ commands:
               $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
             fi
             echo "Android SDK installed at $ANDROID_HOME"
+            java -version 2>&1 || true
 
 # ---------------------------------------------------------------------------
 # Jobs
