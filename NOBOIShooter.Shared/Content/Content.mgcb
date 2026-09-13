@@ -345,7 +345,7 @@
 /processorParam:TextureFormat=Color
 /build:Item/bubble-shoot.png
 
-#begin Item/gun.png
+#begin Item/Gun.png
 /importer:TextureImporter
 /processor:TextureProcessor
 /processorParam:ColorKeyColor=255,0,255,255
@@ -355,7 +355,7 @@
 /processorParam:ResizeToPowerOfTwo=False
 /processorParam:MakeSquare=False
 /processorParam:TextureFormat=Color
-/build:Item/gun.png
+/build:Item/Gun.png
 
 #begin Item/hand-gun.png
 /importer:TextureImporter

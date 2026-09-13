@@ -98,6 +98,23 @@ commands:
           name: Install MonoGame native dependencies (macOS)
           command: |
             brew install freeimage freetype libpng || true
+            # Create symlinks so MGCB can find FreeImage (looks for FreeImage.dylib, brew installs libfreeimage.dylib)
+            BREW_LIB=$(brew --prefix)/lib
+            for name in FreeImage freeimage; do
+              for ext in dylib tbd; do
+                src="$BREW_LIB/lib${name}.${ext}"
+                dst="$BREW_LIB/${name}.${ext}"
+                if [ -f "$src" ] && [ ! -e "$dst" ]; then
+                  ln -s "$src" "$dst"
+                fi
+              done
+            done
+            # Also link into dotnet search paths
+            DOTNET_DIR=$(ls -d $HOME/.dotnet/shared/Microsoft.NETCore.App/*/ 2>/dev/null | head -1)
+            if [ -n "$DOTNET_DIR" ] && [ -f "$BREW_LIB/FreeImage.dylib" ]; then
+              ln -sf "$BREW_LIB/FreeImage.dylib" "$DOTNET_DIR/FreeImage.dylib" 2>/dev/null || true
+              ln -sf "$BREW_LIB/libFreeImage.dylib" "$DOTNET_DIR/libFreeImage.dylib" 2>/dev/null || true
+            fi
 
   install_android_sdk:
     description: "Install Android SDK command-line tools and platforms"
