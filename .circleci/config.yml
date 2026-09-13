@@ -15,7 +15,7 @@ version: 2.1
 executors:
   dotnet:
     docker:
-      - image: mcr.microsoft.com/dotnet/sdk:8.0
+      - image: mcr.microsoft.com/dotnet/sdk:9.0
     working_directory: ~/repo
     environment:
       DOTNET_CLI_TELEMETRY_OPTOUT: 1
@@ -29,6 +29,7 @@ executors:
     environment:
       DOTNET_CLI_TELEMETRY_OPTOUT: 1
       DOTNET_NOLOGO: 1
+      MONOGAME_SKIP_CONTENT: "true"
 
 commands:
   checkout_and_restore:
@@ -76,7 +77,7 @@ commands:
             if ! command -v dotnet &> /dev/null; then
               curl -sSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
               chmod +x /tmp/dotnet-install.sh
-              /tmp/dotnet-install.sh --channel 8.0
+              /tmp/dotnet-install.sh --channel 9.0
               echo 'export PATH="$HOME/.dotnet:$PATH"' >> "$BASH_ENV"
               export PATH="$HOME/.dotnet:$PATH"
             fi
@@ -224,6 +225,7 @@ jobs:
               -r osx-x64 \
               --self-contained \
               -c Release \
+              -p:BuildContent=false \
               -o artifacts/osx-x64
       - run:
           name: Package macOS x64 artifact
@@ -253,6 +255,7 @@ jobs:
               -r osx-arm64 \
               --self-contained \
               -c Release \
+              -p:BuildContent=false \
               -o artifacts/osx-arm64
       - run:
           name: Package macOS arm64 artifact
@@ -275,7 +278,7 @@ jobs:
       - install_android_sdk
       - run:
           name: Install Android workload
-          command: dotnet workload install android
+          command: dotnet workload install android --skip-manifest-update
       - restore_mgcb_tool
       - attach_workspace:
           at: .
@@ -320,7 +323,7 @@ jobs:
       - install_macos_deps
       - run:
           name: Install iOS workload
-          command: dotnet workload install ios
+          command: dotnet workload install ios --skip-manifest-update
       - restore_mgcb_tool
       - attach_workspace:
           at: .
@@ -331,6 +334,7 @@ jobs:
               -r ios-arm64 \
               --self-contained \
               -c Release \
+              -p:BuildContent=false \
               -p:EnableCodeSigning=false \
               -p:CodesignKey="" \
               -o artifacts/ios-arm64
