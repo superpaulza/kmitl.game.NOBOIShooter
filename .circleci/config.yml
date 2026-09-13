@@ -63,16 +63,16 @@ commands:
       - run:
           name: Restore MGCB content builder tool
           command: |
-            dotnet tool restore
+            dotnet tool restore || true
             # Symlink system ffmpeg into MGCB tool directory for audio processing
             if command -v ffmpeg &> /dev/null; then
-              MGCB_BIN=$(find ~/.dotnet/tools -name "mgcb" -type f 2>/dev/null | head -1)
+              MGCB_BIN=$(find ~/.dotnet/tools -name "mgcb" -type f 2>/dev/null | head -1) || true
               if [ -n "$MGCB_BIN" ]; then
                 MGCB_DIR=$(dirname "$MGCB_BIN")
-                FFMPEG_PATH=$(which ffmpeg)
-                FFPROBE_PATH=$(which ffprobe)
-                ln -sf "$FFMPEG_PATH" "$MGCB_DIR/ffmpeg" 2>/dev/null || true
-                ln -sf "$FFPROBE_PATH" "$MGCB_DIR/ffprobe" 2>/dev/null || true
+                FFMPEG_PATH=$(which ffmpeg) || true
+                FFPROBE_PATH=$(which ffprobe) || true
+                [ -n "$FFMPEG_PATH" ] && ln -sf "$FFMPEG_PATH" "$MGCB_DIR/ffmpeg" 2>/dev/null || true
+                [ -n "$FFPROBE_PATH" ] && ln -sf "$FFPROBE_PATH" "$MGCB_DIR/ffprobe" 2>/dev/null || true
               fi
             fi
 
