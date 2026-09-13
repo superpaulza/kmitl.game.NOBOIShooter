@@ -62,19 +62,7 @@ commands:
     steps:
       - run:
           name: Restore MGCB content builder tool
-          command: |
-            dotnet tool restore || true
-            # Symlink system ffmpeg into MGCB tool directory for audio processing
-            if command -v ffmpeg &> /dev/null; then
-              MGCB_BIN=$(find ~/.dotnet/tools -name "mgcb" -type f 2>/dev/null | head -1) || true
-              if [ -n "$MGCB_BIN" ]; then
-                MGCB_DIR=$(dirname "$MGCB_BIN")
-                FFMPEG_PATH=$(which ffmpeg) || true
-                FFPROBE_PATH=$(which ffprobe) || true
-                [ -n "$FFMPEG_PATH" ] && ln -sf "$FFMPEG_PATH" "$MGCB_DIR/ffmpeg" 2>/dev/null || true
-                [ -n "$FFPROBE_PATH" ] && ln -sf "$FFPROBE_PATH" "$MGCB_DIR/ffprobe" 2>/dev/null || true
-              fi
-            fi
+          command: dotnet tool restore || true
 
   install_monogame_native_deps:
     description: "Install native libraries needed by MonoGame Content Builder (freetype, libpng)"
@@ -134,7 +122,7 @@ commands:
                 fi
               done
             done
-            # Link ffmpeg into dotnet tools dir where MGCB looks for it
+            # Link libs into dotnet search paths
             DOTNET_DIR=$(ls -d $HOME/.dotnet/shared/Microsoft.NETCore.App/*/ 2>/dev/null | head -1)
             if [ -n "$DOTNET_DIR" ]; then
               for lib in FreeImage libFreeImage freetype6 libfreetype6; do
@@ -146,7 +134,22 @@ commands:
                 done
               done
             fi
-            # Ensure ffmpeg is in PATH
+            # Replace MGCB-bundled FFmpeg dylibs with brew arm64-compatible versions
+            # MGCB loads FFmpeg via P/Invoke from its NuGet tool store
+            MGCB_STORE="$HOME/.dotnet/tools/.store/dotnet-mgcb"
+            if [ -d "$MGCB_STORE" ]; then
+              for dylib in libavcodec libavformat libavutil libswresample libswscale; do
+                for ext in dylib; do
+                  BREW_DYLIB="$BREW_LIB/${dylib}.${ext}"
+                  if [ -f "$BREW_DYLIB" ]; then
+                    find "$MGCB_STORE" -name "${dylib}.${ext}" -type f 2>/dev/null | while read -r f; do
+                      cp "$BREW_DYLIB" "$f" 2>/dev/null || true
+                    done
+                  fi
+                done
+              done
+            fi
+            # Also ensure ffmpeg is in PATH
             ln -sf "$BREW_BIN/ffmpeg" /usr/local/bin/ffmpeg 2>/dev/null || true
             ln -sf "$BREW_BIN/ffprobe" /usr/local/bin/ffprobe 2>/dev/null || true
 
@@ -156,19 +159,22 @@ commands:
       - run:
           name: Install Android SDK
           command: |
-            apt-get update && apt-get install -y unzip
-            if [ ! -d "$ANDROID_HOME" ]; then
-              export ANDROID_HOME=/opt/android-sdk
-              echo "export ANDROID_HOME=/opt/android-sdk" >> "$BASH_ENV"
+            export ANDROID_HOME=/opt/android-sdk
+            echo "export ANDROID_HOME=/opt/android-sdk" >> "$BASH_ENV"
+            echo "export ANDROID_SDK_ROOT=/opt/android-sdk" >> "$BASH_ENV"
+            apt-get update && apt-get install -y unzip curl
+            if [ ! -d "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
               mkdir -p $ANDROID_HOME
               cd /tmp
-              curl -sO https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-              unzip -q commandlinetools-linux-11076708_latest.zip
+              curl -fSL -o commandlinetools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+              unzip -q -o commandlinetools.zip
               mkdir -p $ANDROID_HOME/cmdline-tools
+              rm -rf $ANDROID_HOME/cmdline-tools/latest
               mv cmdline-tools $ANDROID_HOME/cmdline-tools/latest
-              yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1
+              yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
               $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
             fi
+            echo "Android SDK installed at $ANDROID_HOME"
 
 # ---------------------------------------------------------------------------
 # Jobs
