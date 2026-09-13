@@ -97,9 +97,9 @@ commands:
       - run:
           name: Install MonoGame native dependencies (macOS)
           command: |
-            brew install freeimage freetype libpng || true
-            # Create symlinks so MGCB can find FreeImage (looks for FreeImage.dylib, brew installs libfreeimage.dylib)
+            brew install freeimage freetype libpng ffmpeg || true
             BREW_LIB=$(brew --prefix)/lib
+            # Create symlinks so MGCB can find FreeImage
             for name in FreeImage freeimage; do
               for ext in dylib tbd; do
                 src="$BREW_LIB/lib${name}.${ext}"
@@ -109,11 +109,27 @@ commands:
                 fi
               done
             done
-            # Also link into dotnet search paths
+            # Create symlinks so MGCB can find freetype6 (looks for freetype6.dylib, brew has libfreetype.dylib)
+            for name in freetype6; do
+              for ext in dylib tbd; do
+                src="$BREW_LIB/libfreetype.${ext}"
+                dst="$BREW_LIB/${name}.${ext}"
+                if [ -f "$src" ] && [ ! -e "$dst" ]; then
+                  ln -s "$src" "$dst"
+                fi
+              done
+            done
+            # Link into dotnet search paths
             DOTNET_DIR=$(ls -d $HOME/.dotnet/shared/Microsoft.NETCore.App/*/ 2>/dev/null | head -1)
-            if [ -n "$DOTNET_DIR" ] && [ -f "$BREW_LIB/FreeImage.dylib" ]; then
-              ln -sf "$BREW_LIB/FreeImage.dylib" "$DOTNET_DIR/FreeImage.dylib" 2>/dev/null || true
-              ln -sf "$BREW_LIB/libFreeImage.dylib" "$DOTNET_DIR/libFreeImage.dylib" 2>/dev/null || true
+            if [ -n "$DOTNET_DIR" ]; then
+              for lib in FreeImage libFreeImage freetype6 libfreetype6; do
+                for ext in dylib tbd; do
+                  src="$BREW_LIB/${lib}.${ext}"
+                  if [ -f "$src" ] && [ ! -e "$DOTNET_DIR/${lib}.${ext}" ]; then
+                    ln -sf "$src" "$DOTNET_DIR/${lib}.${ext}" 2>/dev/null || true
+                  fi
+                done
+              done
             fi
 
   install_android_sdk:

@@ -3,6 +3,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <RootNamespace>NOBOIShooter</RootNamespace>
     <AssemblyName>NOBOIShooter.Shared</AssemblyName>
+    <NoWarn>SYSLIB0011</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.1.303" />
