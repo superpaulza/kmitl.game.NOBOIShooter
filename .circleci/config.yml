@@ -7,11 +7,11 @@ version: 2.1
 # Artifacts: Available in CircleCI Artifacts tab after build
 #
 # Key design:
-#   - Each job only restores/builds the specific project it needs (not the
-#     entire solution) to avoid NETSDK1147/NETSDK1178 errors from platform
-#     workloads that aren't installed on that executor.
+#   - Each job only restores/publishes the specific project it needs (not the
+#     entire solution) to avoid cross-platform workload errors.
 #   - macOS executor installs .NET SDK via brew before any dotnet commands.
 #   - Workloads are installed BEFORE dotnet restore/publish.
+#   - dotnet publish handles restore + build + MGCB content in one step.
 # =============================================================================
 
 # ---------------------------------------------------------------------------
@@ -44,13 +44,13 @@ commands:
       - checkout
       - restore_cache:
           keys:
-            - dotnet-v2-{{ checksum "NOBOIShooter.Shared/NOBOIShooter.Shared.csproj" }}
-            - dotnet-v2-
+            - dotnet-v3-{{ checksum "NOBOIShooter.Shared/NOBOIShooter.Shared.csproj" }}
+            - dotnet-v3-
 
   save_dotnet_cache:
     steps:
       - save_cache:
-          key: dotnet-v2-{{ checksum "NOBOIShooter.Shared/NOBOIShooter.Shared.csproj" }}
+          key: dotnet-v3-{{ checksum "NOBOIShooter.Shared/NOBOIShooter.Shared.csproj" }}
           paths:
             - ~/.nuget/packages
             - ~/.dotnet
@@ -63,7 +63,6 @@ commands:
           command: |
             if ! command -v dotnet &> /dev/null; then
               brew install dotnet
-              # Add dotnet to PATH for subsequent steps
               echo 'export PATH="/opt/homebrew/opt/dotnet/bin:$PATH"' >> "$BASH_ENV"
               echo 'export PATH="/usr/local/share/dotnet:$PATH"' >> "$BASH_ENV"
             fi
@@ -80,19 +79,12 @@ jobs:
     steps:
       - checkout_and_restore
       - run:
-          name: Restore Windows project
-          command: dotnet restore NOBOIShooter.DesktopGL/NOBOIShooter.DesktopGL.csproj
-      - run:
-          name: Build Shared project
-          command: dotnet build NOBOIShooter.Shared/NOBOIShooter.Shared.csproj -c Release --no-restore
-      - run:
           name: Publish Windows x64
           command: |
             dotnet publish NOBOIShooter.DesktopGL/NOBOIShooter.DesktopGL.csproj \
               -r win-x64 \
               --self-contained \
               -c Release \
-              --no-restore \
               -o artifacts/win-x64
       - run:
           name: Package Windows artifact
@@ -112,19 +104,12 @@ jobs:
     steps:
       - checkout_and_restore
       - run:
-          name: Restore Linux project
-          command: dotnet restore NOBOIShooter.DesktopGL/NOBOIShooter.DesktopGL.csproj
-      - run:
-          name: Build Shared project
-          command: dotnet build NOBOIShooter.Shared/NOBOIShooter.Shared.csproj -c Release --no-restore
-      - run:
           name: Publish Linux x64
           command: |
             dotnet publish NOBOIShooter.DesktopGL/NOBOIShooter.DesktopGL.csproj \
               -r linux-x64 \
               --self-contained \
               -c Release \
-              --no-restore \
               -o artifacts/linux-x64
       - run:
           name: Package Linux artifact
@@ -145,19 +130,12 @@ jobs:
       - checkout_and_restore
       - install_dotnet_sdk
       - run:
-          name: Restore macOS x64 project
-          command: dotnet restore NOBOIShooter.DesktopGL/NOBOIShooter.DesktopGL.csproj
-      - run:
-          name: Build Shared project
-          command: dotnet build NOBOIShooter.Shared/NOBOIShooter.Shared.csproj -c Release --no-restore
-      - run:
           name: Publish macOS x64
           command: |
             dotnet publish NOBOIShooter.DesktopGL/NOBOIShooter.DesktopGL.csproj \
               -r osx-x64 \
               --self-contained \
               -c Release \
-              --no-restore \
               -o artifacts/osx-x64
       - run:
           name: Package macOS x64 artifact
@@ -178,19 +156,12 @@ jobs:
       - checkout_and_restore
       - install_dotnet_sdk
       - run:
-          name: Restore macOS arm64 project
-          command: dotnet restore NOBOIShooter.DesktopGL/NOBOIShooter.DesktopGL.csproj
-      - run:
-          name: Build Shared project
-          command: dotnet build NOBOIShooter.Shared/NOBOIShooter.Shared.csproj -c Release --no-restore
-      - run:
           name: Publish macOS arm64
           command: |
             dotnet publish NOBOIShooter.DesktopGL/NOBOIShooter.DesktopGL.csproj \
               -r osx-arm64 \
               --self-contained \
               -c Release \
-              --no-restore \
               -o artifacts/osx-arm64
       - run:
           name: Package macOS arm64 artifact
@@ -213,19 +184,12 @@ jobs:
           name: Install Android workload
           command: dotnet workload install android
       - run:
-          name: Restore Android project
-          command: dotnet restore NOBOIShooter.Android/NOBOIShooter.Android.csproj
-      - run:
-          name: Build Shared project
-          command: dotnet build NOBOIShooter.Shared/NOBOIShooter.Shared.csproj -c Release --no-restore
-      - run:
           name: Publish Android arm64 (unsigned APK)
           command: |
             dotnet publish NOBOIShooter.Android/NOBOIShooter.Android.csproj \
               -r android-arm64 \
               --self-contained \
               -c Release \
-              --no-restore \
               -o artifacts/android-arm64
       - run:
           name: Publish Android x64 (for emulator testing)
@@ -234,7 +198,6 @@ jobs:
               -r android-x64 \
               --self-contained \
               -c Release \
-              --no-restore \
               -o artifacts/android-x64
       - run:
           name: Package Android artifacts
@@ -261,13 +224,10 @@ jobs:
       - install_dotnet_sdk
       - run:
           name: Install iOS workload
-          command: dotnet workload install ios
-      - run:
-          name: Restore iOS project
-          command: dotnet restore NOBOIShooter.iOS/NOBOIShooter.iOS.csproj
-      - run:
-          name: Build Shared project
-          command: dotnet build NOBOIShooter.Shared/NOBOIShooter.Shared.csproj -c Release --no-restore
+          command: |
+            dotnet workload install ios || \
+            dotnet workload install maui || \
+            echo "iOS workload install failed, attempting build anyway"
       - run:
           name: Publish iOS arm64 (unsigned)
           command: |
@@ -275,7 +235,6 @@ jobs:
               -r ios-arm64 \
               --self-contained \
               -c Release \
-              --no-restore \
               -o artifacts/ios-arm64
       - run:
           name: Package iOS artifact
