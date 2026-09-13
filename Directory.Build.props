@@ -1,5 +1,5 @@
 <Project>
-  <PropertyGroup Condition="'$(RuntimeIdentifier)' != '' and ($(RuntimeIdentifier.StartsWith('osx')) or $(RuntimeIdentifier.StartsWith('ios')) or $(RuntimeIdentifier.StartsWith('android')))">
+  <PropertyGroup>
     <BuildContent>false</BuildContent>
   </PropertyGroup>
 </Project>
