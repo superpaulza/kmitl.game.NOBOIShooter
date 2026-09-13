@@ -140,8 +140,7 @@ jobs:
           name: Build MGCB content
           command: |
             dotnet build NOBOIShooter.Shared/NOBOIShooter.Shared.csproj \
-              -c Release \
-              /p:BuildContent=true
+              -c Release
       - persist_to_workspace:
           root: .
           paths:

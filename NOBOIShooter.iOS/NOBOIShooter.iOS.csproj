@@ -6,13 +6,13 @@
     <AssemblyName>NOBOIShooter.iOS</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="MonoGame.Framework.iOS" Version="3.8.1.303" />
-    <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.1.303" />
+    <PackageReference Include="MonoGame.Framework.iOS" Version="3.8.5.1" />
+    <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.5.1" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\NOBOIShooter.Shared\NOBOIShooter.Shared.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <MonoGameContentReference Include="..\NOBOIShooter.Shared\Content\Content.mgcb" />
+    <MonoGameContentReference Condition="'$(BuildContent)' != 'false'" Include="..\NOBOIShooter.Shared\Content\Content.mgcb" />
   </ItemGroup>
 </Project>
