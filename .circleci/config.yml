@@ -287,6 +287,7 @@ jobs:
               -r android-arm64 \
               --self-contained \
               -c Release \
+              -p:BuildContent=false \
               -o artifacts/android-arm64
       - run:
           name: Publish Android x64 (for emulator testing)
@@ -295,6 +296,7 @@ jobs:
               -r android-x64 \
               --self-contained \
               -c Release \
+              -p:BuildContent=false \
               -o artifacts/android-x64
       - run:
           name: Package Android artifacts
