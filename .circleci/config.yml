@@ -9,7 +9,8 @@ version: 2.1
 # Key design:
 #   - Each job only restores/publishes the specific project it needs (not the
 #     entire solution) to avoid cross-platform workload errors.
-#   - macOS executor installs .NET SDK via brew before any dotnet commands.
+#   - macOS executor installs .NET SDK + native deps via brew.
+#   - Linux Docker installs native deps (freetype, libpng) for MGCB.
 #   - Workloads are installed BEFORE dotnet restore/publish.
 #   - dotnet-mgcb tool is restored via .config/dotnet-tools.json manifest.
 #   - dotnet publish handles restore + build + MGCB content in one step.
@@ -45,13 +46,13 @@ commands:
       - checkout
       - restore_cache:
           keys:
-            - dotnet-v4-{{ checksum "NOBOIShooter.Shared/NOBOIShooter.Shared.csproj" }}
-            - dotnet-v4-
+            - dotnet-v5-{{ checksum "NOBOIShooter.Shared/NOBOIShooter.Shared.csproj" }}
+            - dotnet-v5-
 
   save_dotnet_cache:
     steps:
       - save_cache:
-          key: dotnet-v4-{{ checksum "NOBOIShooter.Shared/NOBOIShooter.Shared.csproj" }}
+          key: dotnet-v5-{{ checksum "NOBOIShooter.Shared/NOBOIShooter.Shared.csproj" }}
           paths:
             - ~/.nuget/packages
             - ~/.dotnet
@@ -62,6 +63,19 @@ commands:
       - run:
           name: Restore MGCB content builder tool
           command: dotnet tool restore
+
+  install_monogame_native_deps:
+    description: "Install native libraries needed by MonoGame Content Builder (freetype, libpng)"
+    steps:
+      - run:
+          name: Install MonoGame native dependencies
+          command: |
+            apt-get update && apt-get install -y \
+              libfreetype6 \
+              libpng16-16 \
+              libgl1-mesa-glx \
+              libgl1-mesa-dri \
+              || true
 
   install_dotnet_sdk:
     description: "Install .NET SDK on macOS (not present by default)"
@@ -76,6 +90,14 @@ commands:
               echo 'export PATH="$HOME/.dotnet:$PATH"' >> "$BASH_ENV"
               export PATH="$HOME/.dotnet:$PATH"
             fi
+
+  install_macos_native_deps:
+    description: "Install native libraries needed by MonoGame Content Builder on macOS"
+    steps:
+      - run:
+          name: Install MonoGame native dependencies (macOS)
+          command: |
+            brew install freeimage freetype libpng || true
 
   install_android_sdk:
     description: "Install Android SDK command-line tools and platforms"
@@ -108,6 +130,7 @@ jobs:
     executor: dotnet
     steps:
       - checkout_and_restore
+      - install_monogame_native_deps
       - restore_mgcb_tool
       - run:
           name: Publish Windows x64
@@ -134,6 +157,7 @@ jobs:
     executor: dotnet
     steps:
       - checkout_and_restore
+      - install_monogame_native_deps
       - restore_mgcb_tool
       - run:
           name: Publish Linux x64
@@ -161,6 +185,7 @@ jobs:
     steps:
       - checkout_and_restore
       - install_dotnet_sdk
+      - install_macos_native_deps
       - restore_mgcb_tool
       - run:
           name: Publish macOS x64
@@ -188,6 +213,7 @@ jobs:
     steps:
       - checkout_and_restore
       - install_dotnet_sdk
+      - install_macos_native_deps
       - restore_mgcb_tool
       - run:
           name: Publish macOS arm64
@@ -214,6 +240,7 @@ jobs:
     executor: dotnet
     steps:
       - checkout_and_restore
+      - install_monogame_native_deps
       - install_android_sdk
       - run:
           name: Install Android workload
@@ -258,6 +285,7 @@ jobs:
     steps:
       - checkout_and_restore
       - install_dotnet_sdk
+      - install_macos_native_deps
       - run:
           name: Install iOS workload
           command: dotnet workload install ios
@@ -269,6 +297,8 @@ jobs:
               -r ios-arm64 \
               --self-contained \
               -c Release \
+              -p:EnableCodeSigning=false \
+              -p:CodesignKey="" \
               -o artifacts/ios-arm64
       - run:
           name: Package iOS artifact
