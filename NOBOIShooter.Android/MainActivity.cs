@@ -12,7 +12,7 @@ namespace NOBOIShooter.Android
         MainLauncher = true,
         ConfigurationChanges = ConfigChanges.Orientation | ConfigChanges.ScreenSize | ConfigChanges.Keyboard | ConfigChanges.KeyboardHidden,
         ScreenOrientation = ScreenOrientation.Landscape)]
-    public class MainActivity : Microsoft.Xna.Framework.Android.AndroidGameActivity
+    public class MainActivity : AndroidGameActivity
     {
         protected override void OnCreate(Bundle bundle)
         {

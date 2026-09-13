@@ -4,21 +4,14 @@ version: 2.1
 # CircleCI Multi-Platform Build Pipeline for NOBOIShooter (MonoGame)
 # =============================================================================
 # Builds: Windows, Linux, macOS (x64 + arm64), Android, iOS
-# Artifacts: Available in CircleCI Artifacts tab after build
 #
 # Key design:
-#   - Each job only restores/publishes the specific project it needs (not the
-#     entire solution) to avoid cross-platform workload errors.
-#   - macOS executor installs .NET SDK + native deps via brew.
-#   - Linux Docker installs native deps (freetype, libpng) for MGCB.
-#   - Workloads are installed BEFORE dotnet restore/publish.
-#   - dotnet-mgcb tool is restored via .config/dotnet-tools.json manifest.
-#   - dotnet publish handles restore + build + MGCB content in one step.
+#   - Content is built ONCE on Linux (where MGCB FFmpeg works reliably) and
+#     shared via workspaces to macOS/iOS jobs which skip content building.
+#   - Windows, Linux, Android build their own content on Linux Docker.
+#   - macOS/iOS attach the workspace and compile code only (/p:BuildContent=false).
 # =============================================================================
 
-# ---------------------------------------------------------------------------
-# Executors
-# ---------------------------------------------------------------------------
 executors:
   dotnet:
     docker:
@@ -37,60 +30,33 @@ executors:
       DOTNET_CLI_TELEMETRY_OPTOUT: 1
       DOTNET_NOLOGO: 1
 
-# ---------------------------------------------------------------------------
-# Reusable commands
-# ---------------------------------------------------------------------------
 commands:
   checkout_and_restore:
     steps:
       - checkout
       - restore_cache:
           keys:
-            - dotnet-v5-{{ checksum "NOBOIShooter.Shared/NOBOIShooter.Shared.csproj" }}
-            - dotnet-v5-
+            - dotnet-v6-{{ checksum "NOBOIShooter.Shared/NOBOIShooter.Shared.csproj" }}
+            - dotnet-v6-
 
   save_dotnet_cache:
     steps:
       - save_cache:
-          key: dotnet-v5-{{ checksum "NOBOIShooter.Shared/NOBOIShooter.Shared.csproj" }}
+          key: dotnet-v6-{{ checksum "NOBOIShooter.Shared/NOBOIShooter.Shared.csproj" }}
           paths:
             - ~/.nuget/packages
             - ~/.dotnet
 
   restore_mgcb_tool:
-    description: "Restore dotnet-mgcb tool and fix FFmpeg dylibs on macOS"
     steps:
       - run:
           name: Restore MGCB content builder tool
           command: dotnet tool restore || true
-      - run:
-          name: Replace MGCB-bundled FFmpeg dylibs (macOS only)
-          command: |
-            # Only runs on macOS where brew provides arm64 FFmpeg
-            command -v brew &> /dev/null || exit 0
-            BREW_LIB=$(brew --prefix)/lib
-            MGCB_STORE="$HOME/.dotnet/tools/.store/dotnet-mgcb"
-            if [ -d "$MGCB_STORE" ]; then
-              echo "Replacing FFmpeg dylibs in MGCB tool store..."
-              for dylib in libavcodec libavformat libavutil libswresample libswscale; do
-                BREW_DYLIB="$BREW_LIB/${dylib}.dylib"
-                if [ -f "$BREW_DYLIB" ]; then
-                  find "$MGCB_STORE" -name "${dylib}.dylib" -type f 2>/dev/null | while read -r f; do
-                    echo "  Replacing $f with $BREW_DYLIB"
-                    cp "$BREW_DYLIB" "$f" 2>/dev/null || true
-                  done
-                fi
-              done
-              echo "FFmpeg dylib replacement complete."
-            else
-              echo "MGCB store not found at $MGCB_STORE, skipping FFmpeg replacement."
-            fi
 
-  install_monogame_native_deps:
-    description: "Install native libraries needed by MonoGame Content Builder (freetype, libpng)"
+  install_linux_deps:
     steps:
       - run:
-          name: Install MonoGame native dependencies
+          name: Install native dependencies (Linux)
           command: |
             apt-get update && apt-get install -y \
               libfreetype6 \
@@ -101,12 +67,12 @@ commands:
               zip \
               || true
 
-  install_dotnet_sdk:
-    description: "Install .NET SDK on macOS (not present by default)"
+  install_macos_deps:
     steps:
       - run:
-          name: Install .NET SDK
+          name: Install .NET SDK and native dependencies (macOS)
           command: |
+            # Install .NET SDK
             if ! command -v dotnet &> /dev/null; then
               curl -sSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
               chmod +x /tmp/dotnet-install.sh
@@ -114,17 +80,10 @@ commands:
               echo 'export PATH="$HOME/.dotnet:$PATH"' >> "$BASH_ENV"
               export PATH="$HOME/.dotnet:$PATH"
             fi
-
-  install_macos_native_deps:
-    description: "Install native libraries needed by MonoGame Content Builder on macOS"
-    steps:
-      - run:
-          name: Install MonoGame native dependencies (macOS)
-          command: |
+            # Install native deps
             brew install freeimage freetype libpng ffmpeg || true
             BREW_LIB=$(brew --prefix)/lib
-            BREW_BIN=$(brew --prefix)/bin
-            # Create symlinks so MGCB can find FreeImage
+            # Create symlinks for FreeImage
             for name in FreeImage freeimage; do
               for ext in dylib tbd; do
                 src="$BREW_LIB/lib${name}.${ext}"
@@ -134,37 +93,19 @@ commands:
                 fi
               done
             done
-            # Create symlinks so MGCB can find freetype6
-            for name in freetype6; do
-              for ext in dylib tbd; do
-                src="$BREW_LIB/libfreetype.${ext}"
-                dst="$BREW_LIB/${name}.${ext}"
-                if [ -f "$src" ] && [ ! -e "$dst" ]; then
-                  ln -s "$src" "$dst"
-                fi
-              done
+            # Create symlinks for freetype6
+            for ext in dylib tbd; do
+              src="$BREW_LIB/libfreetype.${ext}"
+              dst="$BREW_LIB/freetype6.${ext}"
+              if [ -f "$src" ] && [ ! -e "$dst" ]; then
+                ln -s "$src" "$dst"
+              fi
             done
-            # Link libs into dotnet search paths
-            DOTNET_DIR=$(ls -d $HOME/.dotnet/shared/Microsoft.NETCore.App/*/ 2>/dev/null | head -1)
-            if [ -n "$DOTNET_DIR" ]; then
-              for lib in FreeImage libFreeImage freetype6 libfreetype6; do
-                for ext in dylib tbd; do
-                  src="$BREW_LIB/${lib}.${ext}"
-                  if [ -f "$src" ] && [ ! -e "$DOTNET_DIR/${lib}.${ext}" ]; then
-                    ln -sf "$src" "$DOTNET_DIR/${lib}.${ext}" 2>/dev/null || true
-                  fi
-                done
-              done
-            fi
-            # Also ensure ffmpeg is in PATH
-            ln -sf "$BREW_BIN/ffmpeg" /usr/local/bin/ffmpeg 2>/dev/null || true
-            ln -sf "$BREW_BIN/ffprobe" /usr/local/bin/ffprobe 2>/dev/null || true
 
   install_android_sdk:
-    description: "Install Java and Android SDK command-line tools and platforms"
     steps:
       - run:
-          name: Install Android SDK
+          name: Install Java and Android SDK
           command: |
             export ANDROID_HOME=/opt/android-sdk
             echo "export ANDROID_HOME=/opt/android-sdk" >> "$BASH_ENV"
@@ -183,13 +124,30 @@ commands:
               yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
               $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
             fi
-            echo "Android SDK installed at $ANDROID_HOME"
             java -version 2>&1 || true
 
-# ---------------------------------------------------------------------------
-# Jobs
-# ---------------------------------------------------------------------------
 jobs:
+  # =========================================================================
+  # Build content on Linux (where MGCB FFmpeg works reliably)
+  # =========================================================================
+  build-content:
+    executor: dotnet
+    steps:
+      - checkout_and_restore
+      - install_linux_deps
+      - restore_mgcb_tool
+      - run:
+          name: Build MGCB content
+          command: |
+            dotnet build NOBOIShooter.Shared/NOBOIShooter.Shared.csproj \
+              -c Release \
+              /p:BuildContent=true
+      - persist_to_workspace:
+          root: .
+          paths:
+            - NOBOIShooter.Shared/Content/bin
+            - NOBOIShooter.Shared/Content/obj
+
   # =========================================================================
   # Windows build (cross-compiled from Linux Docker)
   # =========================================================================
@@ -197,8 +155,10 @@ jobs:
     executor: dotnet
     steps:
       - checkout_and_restore
-      - install_monogame_native_deps
+      - install_linux_deps
       - restore_mgcb_tool
+      - attach_workspace:
+          at: .
       - run:
           name: Publish Windows x64
           command: |
@@ -224,8 +184,10 @@ jobs:
     executor: dotnet
     steps:
       - checkout_and_restore
-      - install_monogame_native_deps
+      - install_linux_deps
       - restore_mgcb_tool
+      - attach_workspace:
+          at: .
       - run:
           name: Publish Linux x64
           command: |
@@ -251,9 +213,10 @@ jobs:
     executor: macos
     steps:
       - checkout_and_restore
-      - install_dotnet_sdk
-      - install_macos_native_deps
+      - install_macos_deps
       - restore_mgcb_tool
+      - attach_workspace:
+          at: .
       - run:
           name: Publish macOS x64
           command: |
@@ -261,6 +224,7 @@ jobs:
               -r osx-x64 \
               --self-contained \
               -c Release \
+              -p:BuildContent=false \
               -o artifacts/osx-x64
       - run:
           name: Package macOS x64 artifact
@@ -279,9 +243,10 @@ jobs:
     executor: macos
     steps:
       - checkout_and_restore
-      - install_dotnet_sdk
-      - install_macos_native_deps
+      - install_macos_deps
       - restore_mgcb_tool
+      - attach_workspace:
+          at: .
       - run:
           name: Publish macOS arm64
           command: |
@@ -289,6 +254,7 @@ jobs:
               -r osx-arm64 \
               --self-contained \
               -c Release \
+              -p:BuildContent=false \
               -o artifacts/osx-arm64
       - run:
           name: Package macOS arm64 artifact
@@ -307,12 +273,14 @@ jobs:
     executor: dotnet
     steps:
       - checkout_and_restore
-      - install_monogame_native_deps
+      - install_linux_deps
       - install_android_sdk
       - run:
           name: Install Android workload
           command: dotnet workload install android
       - restore_mgcb_tool
+      - attach_workspace:
+          at: .
       - run:
           name: Publish Android arm64 (unsigned APK)
           command: |
@@ -345,18 +313,19 @@ jobs:
           destination: builds/NOBOIShooter-android-x64.zip
 
   # =========================================================================
-  # iOS build (unsigned - requires Apple Developer account for distribution)
+  # iOS build (unsigned)
   # =========================================================================
   build-ios:
     executor: macos
     steps:
       - checkout_and_restore
-      - install_dotnet_sdk
-      - install_macos_native_deps
+      - install_macos_deps
       - run:
           name: Install iOS workload
           command: dotnet workload install ios
       - restore_mgcb_tool
+      - attach_workspace:
+          at: .
       - run:
           name: Publish iOS arm64 (unsigned)
           command: |
@@ -366,6 +335,7 @@ jobs:
               -c Release \
               -p:EnableCodeSigning=false \
               -p:CodesignKey="" \
+              -p:BuildContent=false \
               -o artifacts/ios-arm64
       - run:
           name: Package iOS artifact
@@ -384,9 +354,22 @@ workflows:
   version: 2
   build-and-release:
     jobs:
-      - build-windows
-      - build-linux
-      - build-macos-x64
-      - build-macos-arm64
-      - build-android
-      - build-ios
+      - build-content
+      - build-windows:
+          requires:
+            - build-content
+      - build-linux:
+          requires:
+            - build-content
+      - build-macos-x64:
+          requires:
+            - build-content
+      - build-macos-arm64:
+          requires:
+            - build-content
+      - build-android:
+          requires:
+            - build-content
+      - build-ios:
+          requires:
+            - build-content
