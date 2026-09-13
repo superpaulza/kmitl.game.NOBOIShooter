@@ -1,8 +1,7 @@
-﻿using System;
+using System;
 
 namespace NOBOIShooter
 {
-    //main method
     public static class Program
     {
         [STAThread]
