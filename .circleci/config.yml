@@ -62,7 +62,19 @@ commands:
     steps:
       - run:
           name: Restore MGCB content builder tool
-          command: dotnet tool restore
+          command: |
+            dotnet tool restore
+            # Symlink system ffmpeg into MGCB tool directory for audio processing
+            if command -v ffmpeg &> /dev/null; then
+              MGCB_BIN=$(find ~/.dotnet/tools -name "mgcb" -type f 2>/dev/null | head -1)
+              if [ -n "$MGCB_BIN" ]; then
+                MGCB_DIR=$(dirname "$MGCB_BIN")
+                FFMPEG_PATH=$(which ffmpeg)
+                FFPROBE_PATH=$(which ffprobe)
+                ln -sf "$FFMPEG_PATH" "$MGCB_DIR/ffmpeg" 2>/dev/null || true
+                ln -sf "$FFPROBE_PATH" "$MGCB_DIR/ffprobe" 2>/dev/null || true
+              fi
+            fi
 
   install_monogame_native_deps:
     description: "Install native libraries needed by MonoGame Content Builder (freetype, libpng)"
@@ -75,6 +87,8 @@ commands:
               libpng16-16 \
               libgl1-mesa-glx \
               libgl1-mesa-dri \
+              ffmpeg \
+              zip \
               || true
 
   install_dotnet_sdk:
@@ -99,6 +113,7 @@ commands:
           command: |
             brew install freeimage freetype libpng ffmpeg || true
             BREW_LIB=$(brew --prefix)/lib
+            BREW_BIN=$(brew --prefix)/bin
             # Create symlinks so MGCB can find FreeImage
             for name in FreeImage freeimage; do
               for ext in dylib tbd; do
@@ -109,7 +124,7 @@ commands:
                 fi
               done
             done
-            # Create symlinks so MGCB can find freetype6 (looks for freetype6.dylib, brew has libfreetype.dylib)
+            # Create symlinks so MGCB can find freetype6
             for name in freetype6; do
               for ext in dylib tbd; do
                 src="$BREW_LIB/libfreetype.${ext}"
@@ -119,7 +134,7 @@ commands:
                 fi
               done
             done
-            # Link into dotnet search paths
+            # Link ffmpeg into dotnet tools dir where MGCB looks for it
             DOTNET_DIR=$(ls -d $HOME/.dotnet/shared/Microsoft.NETCore.App/*/ 2>/dev/null | head -1)
             if [ -n "$DOTNET_DIR" ]; then
               for lib in FreeImage libFreeImage freetype6 libfreetype6; do
@@ -131,6 +146,9 @@ commands:
                 done
               done
             fi
+            # Ensure ffmpeg is in PATH
+            ln -sf "$BREW_BIN/ffmpeg" /usr/local/bin/ffmpeg 2>/dev/null || true
+            ln -sf "$BREW_BIN/ffprobe" /usr/local/bin/ffprobe 2>/dev/null || true
 
   install_android_sdk:
     description: "Install Android SDK command-line tools and platforms"
