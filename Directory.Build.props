@@ -1,5 +1,9 @@
 <Project>
   <PropertyGroup Condition="'$(env:MONOGAME_SKIP_CONTENT)' == 'true'">
     <BuildContent>false</BuildContent>
+    <!-- Also disable MGCB auto-discovery: otherwise CollectContentReferences
+         re-adds **/*.mgcb (e.g. Shared/Content/Content.mgcb) even with no
+         explicit MonoGameContentReference items. -->
+    <EnableMGCBItems>false</EnableMGCBItems>
   </PropertyGroup>
 </Project>

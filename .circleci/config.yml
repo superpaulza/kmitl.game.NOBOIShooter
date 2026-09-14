@@ -20,6 +20,8 @@ executors:
     environment:
       DOTNET_CLI_TELEMETRY_OPTOUT: 1
       DOTNET_NOLOGO: 1
+      # .NET 9 TerminalLogger crashes (MSB4017) on CircleCI's pty; use console logger
+      MSBUILDTERMINALLOGGER: "off"
 
   macos:
     macos:
@@ -30,6 +32,8 @@ executors:
       DOTNET_CLI_TELEMETRY_OPTOUT: 1
       DOTNET_NOLOGO: 1
       MONOGAME_SKIP_CONTENT: "true"
+      # .NET 9 TerminalLogger crashes (MSB4017) on CircleCI's pty; use console logger
+      MSBUILDTERMINALLOGGER: "off"
 
 commands:
   checkout_and_restore:
@@ -226,6 +230,7 @@ jobs:
               --self-contained \
               -c Release \
               -p:BuildContent=false \
+              -p:EnableMGCBItems=false \
               -o artifacts/osx-x64
       - run:
           name: Package macOS x64 artifact
@@ -256,6 +261,7 @@ jobs:
               --self-contained \
               -c Release \
               -p:BuildContent=false \
+              -p:EnableMGCBItems=false \
               -o artifacts/osx-arm64
       - run:
           name: Package macOS arm64 artifact
@@ -289,7 +295,6 @@ jobs:
               -r android-arm64 \
               --self-contained \
               -c Release \
-              -v minimal \
               -o artifacts/android-arm64
       - run:
           name: Publish Android x64 (for emulator testing)
@@ -298,7 +303,6 @@ jobs:
               -r android-x64 \
               --self-contained \
               -c Release \
-              -v minimal \
               -o artifacts/android-x64
       - run:
           name: Package Android artifacts
@@ -337,6 +341,7 @@ jobs:
               --self-contained \
               -c Release \
               -p:BuildContent=false \
+              -p:EnableMGCBItems=false \
               -p:EnableCodeSigning=false \
               -p:CodesignKey="" \
               -o artifacts/ios-arm64
