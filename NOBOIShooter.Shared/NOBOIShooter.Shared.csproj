@@ -6,7 +6,13 @@
     <NoWarn>SYSLIB0011</NoWarn>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.5.1" />
+    <!-- PrivateAssets=all: Shared compiles against DesktopGL-flavored
+         MonoGame.Framework.dll, but that asset must NOT flow into the
+         Android/iOS heads — each head references its own platform package.
+         Without this, two same-identity MonoGame.Framework.dlls reach the
+         Android compile and the DesktopGL one wins, hiding Android-only
+         types like AndroidGameActivity (CS0246). -->
+    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.5.1" PrivateAssets="all" />
     <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.1.303" />
   </ItemGroup>
 
