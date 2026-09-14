@@ -25,7 +25,7 @@ executors:
 
   macos:
     macos:
-      xcode: "15.4"
+      xcode: "16.4.0"
     resource_class: macos.m1.medium.gen1
     working_directory: ~/repo
     environment:
@@ -127,7 +127,7 @@ commands:
               rm -rf $ANDROID_HOME/cmdline-tools/latest
               mv cmdline-tools $ANDROID_HOME/cmdline-tools/latest
               yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
-              $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+              $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
             fi
             java -version 2>&1 || true
 

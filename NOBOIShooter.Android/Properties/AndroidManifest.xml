@@ -3,7 +3,7 @@
     package="com.noboi.shooter"
     android:versionCode="1"
     android:versionName="1.0">
-  <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="34" />
+  <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="35" />
   <application android:label="NOBOI Shooter" android:icon="@drawable/icon" android:theme="@style/Theme.Splash">
   </application>
 </manifest>
