@@ -1,6 +1,7 @@
 using Android.App;
 using Android.Content.PM;
 using Android.OS;
+using Android.Views;
 using Microsoft.Xna.Framework;
 
 namespace NOBOIShooter.Android
@@ -18,7 +19,7 @@ namespace NOBOIShooter.Android
         {
             base.OnCreate(bundle);
             var game = new Main();
-            SetView(game.Services.GetService<GameView>());
+            SetContentView((View)game.Services.GetService(typeof(View)));
             game.Run();
         }
     }
