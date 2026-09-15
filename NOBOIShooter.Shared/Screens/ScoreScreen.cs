@@ -84,8 +84,8 @@ namespace NOBOIShooter.Screens
 
         public override void Draw(GameTime gameTime, SpriteBatch spriteBatch)
         {
-            // Start drawing
-            spriteBatch.Begin();
+            // Start drawing (virtual 1280x720 -> scaled to device)
+            spriteBatch.Begin(transformMatrix: Singleton.Instance.GetRenderScaleMatrix());
 
             // Draw backgrounds
             spriteBatch.Draw(_background, new Vector2(0, 0), Color.White);

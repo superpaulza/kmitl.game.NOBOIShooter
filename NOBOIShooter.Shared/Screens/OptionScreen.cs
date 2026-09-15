@@ -274,7 +274,7 @@ namespace NOBOIShooter.Screens
 
         public override void Draw(GameTime gameTime, SpriteBatch spriteBatch)
         {
-            spriteBatch.Begin();
+            spriteBatch.Begin(transformMatrix: Singleton.Instance.GetRenderScaleMatrix());
 
             spriteBatch.Draw(_background, new Vector2(0, 0), Color.White);
             spriteBatch.DrawString(_headerFont, "Options", new Vector2(Singleton.Instance.ScreenWidth / 2, 50), Color.White, 0f, _font.MeasureString("Options") * 0.5f, 1f, SpriteEffects.None, 0f);
@@ -291,9 +291,6 @@ namespace NOBOIShooter.Screens
             spriteBatch.DrawString(_font, _sfxVolume.ToString("N0"), new Vector2(Singleton.Instance.ScreenWidth / 2 + 70, 170), Color.White, 0f, new Vector2(0), 1f, SpriteEffects.None, 0f);
 
             spriteBatch.DrawString(_font, _bgmVolume.ToString("N0"), new Vector2(Singleton.Instance.ScreenWidth / 2 + 70, 270), Color.White, 0f, new Vector2(0), 1f, SpriteEffects.None, 0f);
-
-            foreach (Component component in _components)
-                component.Draw(gameTime, spriteBatch);
 
             spriteBatch.End();
         }

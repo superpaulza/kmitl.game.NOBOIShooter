@@ -20,11 +20,17 @@ namespace NOBOIShooter.Screens
         public ScreenManager(Main game, GraphicsDevice graphicsDevice, ContentManager content)
            : base(game, graphicsDevice, content)
         {
-            // Load image game cursor
-            _cursor = _content.Load<Texture2D>("Item/sheriff-cursor");
-
-            // Change cursor texture
-            Mouse.SetCursor(MouseCursor.FromTexture2D(_cursor, 0, 0));
+            // Load image game cursor (desktop only — touch devices have no cursor).
+            try
+            {
+                _cursor = _content.Load<Texture2D>("Item/sheriff-cursor");
+                // Change cursor texture
+                Mouse.SetCursor(MouseCursor.FromTexture2D(_cursor, 0, 0));
+            }
+            catch
+            {
+                // Mouse cursor is not supported on mobile — ignore.
+            }
         }
 
         public override void Draw(GameTime gameTime, SpriteBatch spriteBatch)
@@ -41,9 +47,18 @@ namespace NOBOIShooter.Screens
 
         public override void Update(GameTime gameTime)
         {
-            // If press ( "esc" key or close button ) then exit game
-            if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape))
-                _game.Exit();
+            // Poll unified pointer (mouse + touch) once per frame before screens use it.
+            Controls.InputHelper.Update();
+
+            // If press ( "esc" key or close button ) then exit game.
+            // NOTE: on Android the hardware Back button arrives as GamePad.Back —
+            // only honour it on desktop so mobile users don't accidentally quit.
+            // (Runtime check: Shared compiles as net8.0 without ANDROID/IOS defines.)
+            if (!System.OperatingSystem.IsAndroid() && !System.OperatingSystem.IsIOS())
+            {
+                if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape))
+                    _game.Exit();
+            }
 
             if(_currentSreen == null)
             {

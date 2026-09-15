@@ -84,10 +84,9 @@ namespace NOBOIShooter.Controls
         public override void Update(GameTime gameTime)
         {
             _sound.Volume = Singleton.Instance.SFXVolume;
-            _previousMouse = _currentMouse;
-            _currentMouse = Mouse.GetState();
 
-            mouseRectangle = new Rectangle(_currentMouse.X, _currentMouse.Y, 1, 1);
+            Vector2 p = InputHelper.Position;
+            mouseRectangle = new Rectangle((int)p.X, (int)p.Y, 1, 1);
 
             _isHovering = false;
 
@@ -95,10 +94,11 @@ namespace NOBOIShooter.Controls
             {
                 _isHovering = true;
 
-                if (_currentMouse.LeftButton == ButtonState.Released && _previousMouse.LeftButton == ButtonState.Pressed)
+                // Works for mouse click release AND touch tap release.
+                if (InputHelper.ClickedThisFrame(true))
                 {
                     Click?.Invoke(this, new EventArgs());
-                    _sound.Play();
+                    try { _sound.Play(); } catch { }
                 }
             }
         }

@@ -41,15 +41,19 @@ namespace NOBOIShooter.Screens
             //font
             _buttonFont = _content.Load<SpriteFont>("Fonts/Font");
 
-            //sound
-            if ((int)SoundState.Stopped == 2)
+            //sound (BGM toggle respected; guarded so missing/disabled audio never NREs)
+            try
             {
-                _soundEffect = _content.Load<SoundEffect>("BGM/MainMenuBGM");
-                _instance = _soundEffect.CreateInstance();
-                _instance.IsLooped = true;
-                _instance.Volume = Singleton.Instance.BGMVolume;
-                _instance.Play();
+                if (Singleton.Instance.IsBGMEnable)
+                {
+                    _soundEffect = _content.Load<SoundEffect>("BGM/MainMenuBGM");
+                    _instance = _soundEffect.CreateInstance();
+                    _instance.IsLooped = true;
+                    _instance.Volume = Singleton.Instance.BGMVolume;
+                    _instance.Play();
+                }
             }
+            catch { _instance = null; }
 
             // _volumeState = _volumeOn;
 
@@ -112,19 +116,25 @@ namespace NOBOIShooter.Screens
             };
         }
 
-        //Buttons behavior 
+        private void StopMenuBgm()
+        {
+            try { _instance?.Stop(); } catch { }
+            try { _instance?.Dispose(); } catch { }
+            _instance = null;
+        }
+
+        //Buttons behavior
         private void PlayButtonOnClick(object sender, EventArgs e)
         {
+            StopMenuBgm();
             _game.ChangeScreen(ScreenSelect.Game);
-            // _instance.Stop();
-            _instance.Dispose();
         }
 
         private void LeaderboardButtonOnClick(object sender, EventArgs e)
         {
             //Console.WriteLine("Leaderboard click");
+            StopMenuBgm();
             _game.ChangeScreen(ScreenSelect.Score);
-            _instance.Dispose();
         }
 
         private void QuitGameButtonOnClick(object sender, EventArgs e)
@@ -148,13 +158,13 @@ namespace NOBOIShooter.Screens
 
         private void GameOptionsButtonOnClick(object sender, EventArgs e)
         {
+            StopMenuBgm();
             _game.ChangeScreen(ScreenSelect.Setting);
-            _instance.Dispose();
         }
 
         public override void Draw(GameTime gameTime, SpriteBatch spriteBatch)
         {
-            spriteBatch.Begin();
+            spriteBatch.Begin(transformMatrix: Singleton.Instance.GetRenderScaleMatrix());
 
             spriteBatch.Draw(_background, new Vector2(0, 0), Color.White);
 

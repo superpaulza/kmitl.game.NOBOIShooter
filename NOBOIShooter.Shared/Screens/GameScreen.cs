@@ -113,7 +113,7 @@ namespace NOBOIShooter.Screens
 
         public override void Draw(GameTime gameTime, SpriteBatch spriteBatch)
         {
-            spriteBatch.Begin();
+            spriteBatch.Begin(transformMatrix: Singleton.Instance.GetRenderScaleMatrix());
 
             // Draw Backgrounds
             spriteBatch.Draw(_background, _fullScreen, Color.White);
@@ -156,10 +156,10 @@ namespace NOBOIShooter.Screens
                 _sfxBgInstance.Pause();
             }
 
-            // Write text Win
+            // Write text Win (guard Play() — Draw runs every frame)
             if (_bord.GameWin)
             {
-                _sfxWinInstance.Play();
+                try { if (_sfxWinInstance.State != SoundState.Playing) _sfxWinInstance.Play(); } catch { }
                 string gameWon = "You Won \n\n Want to play again?";
                 spriteBatch.DrawString(_textFront, gameWon,  new Vector2(FindCenterText(gameWon), 100f), Color.White);
             }
@@ -167,7 +167,7 @@ namespace NOBOIShooter.Screens
             // Write text Lose
             else if (_bord.GameEnd)
             {
-                _sfxEndInstance.Play();
+                try { if (_sfxEndInstance.State != SoundState.Playing) _sfxEndInstance.Play(); } catch { }
                 string gameEnding = "Game Ending \n\n Thank for playing.";
                 spriteBatch.DrawString(_textFront, gameEnding, new Vector2(FindCenterText(gameEnding), 100f), Color.White);
             }

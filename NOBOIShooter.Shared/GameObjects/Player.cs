@@ -102,26 +102,42 @@ namespace NOBOIShooter.GameObjects
         {
             _gunSound.Volume = Singleton.Instance.SFXVolume;
 
-            // Load mouse state
+            // Load pointer state (mouse on desktop, touch on mobile)
             if (_isSwapping)
             {
                 _isSwapping = _ballEffect.Visible;
                 _ballEffect.Update(gameTime);
-            
+
             }
-            MousePrevious = MouseCurrent;
-            MouseCurrent = Mouse.GetState();
+            Vector2 pointer = Controls.InputHelper.Position;
 
-            // find angle of shooter
-            _shooterAngle = (float)Math.Atan2((_position.Y + SHOOTER_RADIAN) - MouseCurrent.Y, (_position.X + SHOOTER_RADIAN) - MouseCurrent.X);
+            // find angle of shooter — follows mouse cursor on desktop,
+            // follows finger (drag to aim) on touch.
+            _shooterAngle = (float)Math.Atan2((_position.Y + SHOOTER_RADIAN) - pointer.Y, (_position.X + SHOOTER_RADIAN) - pointer.X);
 
-            if (!_gameBord.GamePause &&!_isShooting && MouseCurrent.Y < _position.Y + SHOOTER_RADIAN && MouseCurrent.LeftButton == ButtonState.Pressed && MousePrevious.LeftButton == ButtonState.Released)
+            // Tap/click release to shoot (drag-to-aim, release-to-fire on touch).
+            // Ignores taps on the top-right UI strip (back button) and taps below the shooter.
+            bool pointerReleased = Controls.InputHelper.IsReleased();
+            bool inUiStrip = pointer.X > 1100 && pointer.Y < 100;
+            if (!_gameBord.GamePause && !_isShooting && pointerReleased
+                && pointer.Y < _position.Y + SHOOTER_RADIAN && !inUiStrip)
             {
-                _gunSound.Play();
-                _ballShoot.SetAnimation( _currentBall, _shooterCenterPosition - new Vector2(_gameBord.Radius, _gameBord.Radius), (float)(_shooterAngle + MathHelper.ToRadians(180f)));
-                _currentBall = _nextBall;
-                _nextBall = _gameBord.NextColorBubble();
-                _isShooting = true;
+                // Touch QoL: tapping the next-ball preview swaps instead of shooting
+                // (mobile has no right-click).
+                Rectangle nextBallRect = new Rectangle((int)_nextBallPosintion.X - 10, (int)_nextBallPosintion.Y - 10,
+                    (int)_gameBord.TileWidth + 20, (int)_gameBord.TileHeight + 20);
+                if (nextBallRect.Contains((int)pointer.X, (int)pointer.Y))
+                {
+                    DoSwap();
+                }
+                else
+                {
+                    try { _gunSound.Play(); } catch { }
+                    _ballShoot.SetAnimation(_currentBall, _shooterCenterPosition - new Vector2(_gameBord.Radius, _gameBord.Radius), (float)(_shooterAngle + MathHelper.ToRadians(180f)));
+                    _currentBall = _nextBall;
+                    _nextBall = _gameBord.NextColorBubble();
+                    _isShooting = true;
+                }
             }
             if (_isShooting)
             {
@@ -129,17 +145,24 @@ namespace NOBOIShooter.GameObjects
                 _isShooting = _ballShoot.Visible;
             }
 
-            //swap ball
-            if (!_isShooting && MouseCurrent.RightButton == ButtonState.Pressed &&   MousePrevious.RightButton == ButtonState.Released)
+            //swap ball (desktop right-click; touch uses next-ball tap above)
+            if (!_isShooting && Controls.InputHelper.IsRightClicked())
             {
-                int tempSwap = _currentBall;
-                _ballEffect = new BallDrop(_gameBord,_ballTexture.GetTexture(_currentBall), 
-                    _ballTexture.GetColor(_currentBall), _ballTexture.GetScale(_currentBall), _shooterBallPosition, _nextBallPosintion);
-                _isSwapping = true;
-                _currentBall = _nextBall;
-                _nextBall = tempSwap;
+                DoSwap();
             }
 
+        }
+
+        private void DoSwap()
+        {
+            // Guard textures during early frames
+            if (_ballTexture.GetTexture(_currentBall) == null) return;
+            int tempSwap = _currentBall;
+            _ballEffect = new BallDrop(_gameBord, _ballTexture.GetTexture(_currentBall),
+                _ballTexture.GetColor(_currentBall), _ballTexture.GetScale(_currentBall), _shooterBallPosition, _nextBallPosintion);
+            _isSwapping = true;
+            _currentBall = _nextBall;
+            _nextBall = tempSwap;
         }
 
     }
