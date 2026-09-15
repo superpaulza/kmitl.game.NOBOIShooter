@@ -1,13 +1,19 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>WinExe</OutputType>
+    <!-- Exe everywhere so macOS/Linux get a runnable apphost; WinExe only
+         for Windows targets (hides the console window). -->
+    <OutputType>Exe</OutputType>
+    <OutputType Condition="$(RuntimeIdentifier.StartsWith('win'))">WinExe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
     <PublishReadyToRun>false</PublishReadyToRun>
     <TieredCompilation>false</TieredCompilation>
     <RootNamespace>NOBOIShooter</RootNamespace>
     <AssemblyName>NOBOIShooter</AssemblyName>
   </PropertyGroup>
-  <PropertyGroup>
+  <!-- Windows-only: app.manifest (UAC/DPI) and .ico only apply when
+       publishing for Windows. Applied unconditionally they leak into
+       macOS/Linux builds. -->
+  <PropertyGroup Condition="$(RuntimeIdentifier.StartsWith('win'))">
     <ApplicationIcon>Icon.ico</ApplicationIcon>
     <StartupObject />
     <ApplicationManifest>app.manifest</ApplicationManifest>

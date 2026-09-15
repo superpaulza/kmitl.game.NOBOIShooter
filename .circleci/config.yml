@@ -10,6 +10,8 @@ version: 2.1
 #     shared via workspaces to macOS/iOS jobs which skip content building.
 #   - Windows, Linux, Android build their own content on Linux Docker.
 #   - macOS/iOS attach the workspace and compile code only (/p:BuildContent=false).
+#   - macOS artifacts ship as signed .app bundles (Finder-double-clickable),
+#     not loose binaries.
 # =============================================================================
 
 executors:
@@ -233,10 +235,17 @@ jobs:
               -p:EnableMGCBItems=false \
               -o artifacts/osx-x64
       - run:
-          name: Package macOS x64 artifact
+          name: Bundle macOS x64 .app and package artifact
           command: |
-            cd artifacts/osx-x64
-            zip -r ../NOBOIShooter-osx-x64.zip .
+            APP="artifacts/NOBOIShooter-osx-x64.app"
+            mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+            cp NOBOIShooter.DesktopGL/Info.plist "$APP/Contents/Info.plist"
+            cp -R artifacts/osx-x64/. "$APP/Contents/MacOS/"
+            chmod +x "$APP/Contents/MacOS/NOBOIShooter"
+            # Ad-hoc sign so the bundle launches on a Mac
+            # (first launch: right-click > Open to bypass Gatekeeper for unsigned builds)
+            codesign --force --deep --sign - "$APP" || true
+            ditto -c -k --keepParent "$APP" artifacts/NOBOIShooter-osx-x64.zip
       - save_dotnet_cache
       - store_artifacts:
           path: artifacts/NOBOIShooter-osx-x64.zip
@@ -264,10 +273,17 @@ jobs:
               -p:EnableMGCBItems=false \
               -o artifacts/osx-arm64
       - run:
-          name: Package macOS arm64 artifact
+          name: Bundle macOS arm64 .app and package artifact
           command: |
-            cd artifacts/osx-arm64
-            zip -r ../NOBOIShooter-osx-arm64.zip .
+            APP="artifacts/NOBOIShooter-osx-arm64.app"
+            mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+            cp NOBOIShooter.DesktopGL/Info.plist "$APP/Contents/Info.plist"
+            cp -R artifacts/osx-arm64/. "$APP/Contents/MacOS/"
+            chmod +x "$APP/Contents/MacOS/NOBOIShooter"
+            # Ad-hoc sign so the bundle launches on a Mac
+            # (first launch: right-click > Open to bypass Gatekeeper for unsigned builds)
+            codesign --force --deep --sign - "$APP" || true
+            ditto -c -k --keepParent "$APP" artifacts/NOBOIShooter-osx-arm64.zip
       - save_dotnet_cache
       - store_artifacts:
           path: artifacts/NOBOIShooter-osx-arm64.zip
